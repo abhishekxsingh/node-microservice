@@ -1,0 +1,28 @@
+#.dockerignore
+.git
+Dockerfile
+docker-compose.yml
+
+# Log files and pid files
+logs
+*.pid
+*.log
+*.logs
+
+.env
+.DS_Store
+
+# Terraform State
+*.tfstate*
+
+# Visual Studio Code
+.vscode
+.vs
+
+#Files not required for production deployment
+.nyc_output
+test
+logs
+.editorconfig
+.eslintrc.js
+npm-debug.log

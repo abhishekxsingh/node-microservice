@@ -1,0 +1,967 @@
+version: 2.1
+
+executors:
+  toolbox-executor:
+    docker:
+      - image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/toolbox:latest
+        aws_auth:
+          aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+          aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+jobs:
+  deploy:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+      weight:
+        type: enum
+        enum: ["small", "medium", "large"]
+      ssh_db_connection:
+        type: boolean
+        default: false
+      auto_scale:
+        type: boolean
+        default: false
+      relative_path_kube_tpl:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - run:
+          name: Creating infrastructure and deploying stack
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            EKS_WEIGHT: << parameters.weight >>
+            PROJECT_NAME: node-microservice
+            DOMAIN_NAME: eazyfin.com
+            CIRCLECI_TAG: << pipeline.git.tag >>
+            SERVICE_NAME: node-microservice
+            SSH_DB_CONNECTION: << parameters.ssh_db_connection >>
+            AUTO_SCALING: << parameters.auto_scale >>
+            RELATIVE_PATH_KUBE_TPL: << parameters.relative_path_kube_tpl >>
+            PORT: 80
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            create_vpc
+            bash /ops/cd/infra-pipeline-v128.sh /ops/cd `pwd`/ops/cd /ops/comman-functions.sh
+  deploy_workflow:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+      weight:
+        type: enum
+        enum: ["small", "medium", "large"]
+      ssh_db_connection:
+        type: boolean
+        default: false
+      auto_scale:
+        type: boolean
+        default: false
+      relative_path_kube_tpl:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - run:
+          name: Creating infrastructure and deploying stack
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            EKS_WEIGHT: << parameters.weight >>
+            PROJECT_NAME: workflow
+            DOMAIN_NAME: eazyfin.com
+            CIRCLECI_TAG: << pipeline.git.tag >>
+            SERVICE_NAME: workflow
+            SSH_DB_CONNECTION: << parameters.ssh_db_connection >>
+            AUTO_SCALING: << parameters.auto_scale >>
+            RELATIVE_PATH_KUBE_TPL: << parameters.relative_path_kube_tpl >>
+            PORT: 80
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            create_vpc
+            bash /ops/cd/infra-pipeline-v128.sh /ops/cd `pwd`/ops/cd /ops/comman-functions.sh
+  deploy_stack:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+      weight:
+        type: enum
+        enum: ["small", "medium", "large"]
+      ssh_db_connection:
+        type: boolean
+        default: false
+      auto_scale:
+        type: boolean
+        default: false
+      relative_path_kube_tpl:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - run:
+          name: Creating infrastructure and deploying stack
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            EKS_WEIGHT: << parameters.weight >>
+            PROJECT_NAME: node-microservice
+            DOMAIN_NAME: eazyfin.com
+            SERVICE_NAME: node-microservice
+            SSH_DB_CONNECTION: << parameters.ssh_db_connection >>
+            AUTO_SCALING: << parameters.auto_scale >>
+            RELATIVE_PATH_KUBE_TPL: << parameters.relative_path_kube_tpl >>
+            PORT: 80
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            get_version_tag
+            create_vpc
+            bash /ops/cd/infra-pipeline-v128.sh /ops/cd `pwd`/ops/cd /ops/comman-functions.sh
+            deploy_redis /ops/cd
+            deploy_all_service
+  destroy_stacks:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+      node_group_name:
+        type: string
+        default: ng-1
+    steps:
+      - checkout
+      - run:
+          name: destroy stacks
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            PROJECT_NAME: node-microservice
+            NODE_GROUP_NAME: << parameters.node_group_name >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            destroy_cluster
+  rds_snapshot:
+    executor: toolbox-executor
+    parameters:
+      ssh_db_connection:
+        type: boolean
+        default: false
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+    steps:
+      - checkout
+      - run:
+          name: backup rds instance
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            SSH_DB_CONNECTION: << parameters.ssh_db_connection >>
+            PROJECT_NAME: node-microservice
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            create_rds_snapshot
+  start_dms_task:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+      dms_task_identifier:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Start DMS task
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            DMS_TASK_IDENTIFIER: << parameters.dms_task_identifier >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            start_dms_task
+  stop_dms_task:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+      dms_task_identifier:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Stop DMS task
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            DMS_TASK_IDENTIFIER: << parameters.dms_task_identifier >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            stop_dms_task
+  
+  deploy_fluent_bit:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+    steps:
+      - checkout
+      - run:
+          name: Creating fluent bit
+          environment:
+            CLUSTER_NAME: << parameters.environment >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            source /ops/logging.sh
+            deploy_logging
+  destroy_fluent_bit:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+    steps:
+      - checkout
+      - run:
+          name: Destroy fluent bit
+          environment:
+            CLUSTER_NAME: << parameters.environment >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            source /ops/logging.sh
+            destroy_fluent_bit
+
+  deploy_prometheus:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+    steps:
+      - checkout
+      - run:
+          name: Deploying prometheus
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            PROJECT_NAME: prometheus
+            DOMAIN_NAME: eazyfin.com
+            SERVICE_NAME: prometheus-server
+            CLUSTER_NAME: << parameters.environment >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            source /ops/monitoring.sh
+            deploy_prometheus /ops/comman-functions.sh
+            deploy_ingress /ops/cd
+  destroy_prometheus:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+    steps:
+      - checkout
+      - run:
+          name: Destroy prometheus
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            PROJECT_NAME: prometheus
+            DOMAIN_NAME: eazyfin.com
+            SERVICE_NAME: prometheus-server
+            CLUSTER_NAME: << parameters.environment >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            source /ops/monitoring.sh
+            destroy_prometheus /ops/comman-functions.sh
+
+  deploy_grafana:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+    steps:
+      - checkout
+      - run:
+          name: Deploying grafana
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            PROJECT_NAME: grafana
+            DOMAIN_NAME: eazyfin.com
+            SERVICE_NAME: grafana
+            CLUSTER_NAME: << parameters.environment >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            source /ops/monitoring.sh
+            deploy_grafana /ops/comman-functions.sh
+            deploy_ingress /ops/cd
+  destroy_grafana:
+    executor: toolbox-executor
+    parameters:
+      environment:
+        type: enum
+        enum: ["demo","ops", "dev", "qa", "demo", "uat", "sit", 'pre-prod', "prod"]
+    steps:
+      - checkout
+      - run:
+          name: Destroy grafana
+          environment:
+            ENVIRONMENT: << parameters.environment >>
+            PROJECT_NAME: grafana
+            DOMAIN_NAME: eazyfin.com
+            SERVICE_NAME: grafana
+            CLUSTER_NAME: << parameters.environment >>
+          command: |
+            source /ops/comman-functions.sh
+            install_common_dependencies
+            validate_aws_credetails
+            source /ops/monitoring.sh
+            destroy_grafana /ops/comman-functions.sh
+
+workflows:
+  delete-stack:
+    jobs:
+      - approval:
+          name: qa_approval_to_delete
+          type: approval
+          filters:
+            branches:
+              only:
+                - qa
+      - destroy_stacks:
+          name: destroy_stacks_qa
+          environment: qa
+          context: QaAutomation
+          node_group_name: managed-nodes
+          requires:
+            - qa_approval_to_delete
+          filters:
+            branches:
+              only:
+                - qa
+      - approval:
+          name: pre_prod_approval_to_delete
+          type: approval
+          filters:
+            branches:
+              only:
+                - qa
+      - destroy_stacks:
+          name: destroy_stacks_pre_prod
+          environment: pre-prod
+          context: PreProdAutomation
+          node_group_name: managed-nodes
+          requires:
+            - pre_prod_approval_to_delete
+          filters:
+            branches:
+              only:
+                - qa
+      - approval:
+          name: dev_approval_to_delete
+          type: approval
+          filters:
+            branches:
+              only:
+                - dev
+      - destroy_stacks:
+          name: destroy_stacks_dev
+          environment: dev
+          context: DevelopmentAutomation
+          node_group_name: managed-nodes
+          requires:
+            - dev_approval_to_delete
+          filters:
+            branches:
+              only:
+                - dev
+
+  deploy-fluent-bit:
+    jobs:
+      - approval:
+          name: qa_approval_to_deploy_fluent_bit
+          type: approval
+          filters:
+            branches:
+              only:
+                - qa
+      - deploy_fluent_bit:
+          name: deploy_fluent_bit_qa
+          environment: qa
+          context: QaAutomation
+          requires:
+            - qa_approval_to_deploy_fluent_bit
+          filters:
+            branches:
+              only:
+                - qa
+      - approval:
+          name: pre_prod_approval_to_deploy_fluent_bit
+          type: approval
+          filters:
+            branches:
+              only:
+                - qa
+      - deploy_fluent_bit:
+          name: deploy_fluent_bit_pre_prod
+          environment: pre-prod
+          context: PreProdAutomation
+          requires:
+            - pre_prod_approval_to_deploy_fluent_bit
+          filters:
+            branches:
+              only:
+                - qa
+      - approval:
+          name: dev_approval_to_deploy_fluent_bit
+          type: approval
+          filters:
+            branches:
+              only:
+                - dev
+      - deploy_fluent_bit:
+          name: deploy_fluent_bit_dev
+          environment: dev
+          context: DevelopmentAutomation
+          requires:
+            - dev_approval_to_deploy_fluent_bit
+          filters:
+            branches:
+              only:
+                - dev
+      - approval:
+          name: prod_approval_to_deploy_fluent_bit
+          type: approval
+          filters:
+            branches:
+              only:
+                - qa
+      - deploy_fluent_bit:
+          name: deploy_fluent_bit_prod
+          environment: prod
+          context: ProdAutomation
+          requires:
+            - prod_approval_to_deploy_fluent_bit
+          filters:
+            branches:
+              only:
+                - qa
+  destroy-fluent-bit:
+    jobs:
+      - approval:
+          name: qa_approval_to_destroy_fluent_bit
+          type: approval
+          filters:
+            branches:
+              only:
+                - qa
+      - destroy_fluent_bit:
+          name: destroy_fluent_bit_qa
+          environment: qa
+          context: QaAutomation
+          requires:
+            - qa_approval_to_destroy_fluent_bit
+          filters:
+            branches:
+              only:
+                - qa
+      - approval:
+          name: pre_prod_approval_to_destroy_fluent_bit
+          type: approval
+          filters:
+            branches:
+              only:
+                - qa
+      - destroy_fluent_bit:
+          name: destroy_fluent_bit_pre_prod
+          environment: pre-prod
+          context: PreProdAutomation
+          requires:
+            - pre_prod_approval_to_destroy_fluent_bit
+          filters:
+            branches:
+              only:
+                - qa
+      - approval:
+          name: dev_approval_to_destroy_fluent_bit
+          type: approval
+          filters:
+            branches:
+              only:
+                - dev
+      - destroy_fluent_bit:
+          name: destroy_fluent_bit_dev
+          environment: dev
+          context: DevelopmentAutomation
+          requires:
+            - dev_approval_to_destroy_fluent_bit
+          filters:
+            branches:
+              only:
+                - dev
+      - approval:
+          name: prod_approval_to_destroy_fluent_bit
+          type: approval
+          filters:
+            branches:
+              only:
+                - qa
+      - destroy_fluent_bit:
+          name: destroy_fluent_bit_prod
+          environment: prod
+          context: ProdAutomation
+          requires:
+            - prod_approval_to_destroy_fluent_bit
+          filters:
+            branches:
+              only:
+                - dev
+
+  start-stop-dms-service:
+    jobs:
+      - approval:
+          name: dev_approval_to_stop_dms
+          type: approval
+          filters:
+            branches:
+              only:
+                - dev
+      - stop_dms_task:
+          name: _stop_dms_task_dev
+          environment: dev
+          dms_task_identifier: auth-dev
+          context: DevelopmentAutomation
+          requires:
+            - dev_approval_to_stop_dms
+          filters:
+            branches:
+              only:
+                - dev
+      - approval:
+          name: dev_approval_to_start_dms
+          type: approval
+          filters:
+            branches:
+              only:
+                - dev
+      - start_dms_task:
+          name: _start_dms_task_dev
+          environment: dev
+          dms_task_identifier: auth-dev
+          context: DevelopmentAutomation
+          requires:
+            - dev_approval_to_start_dms
+          filters:
+            branches:
+              only:
+                - dev
+  
+  build-and-deploy:
+    jobs:
+      - deploy:
+          name: deploy_dev
+          environment: dev
+          weight: large
+          auto_scale: true
+          context: DevelopmentAutomation
+          filters: &filters-staging # this yaml anchor is setting these values to "filters-staging"
+            tags:
+              only: 
+                - /1.0.*/
+            branches:
+              ignore: /.*/
+      - approval:
+          name: dev_deploy_all_service
+          type: approval
+          auto_scale: true
+          filters:
+            <<: *filters-staging
+      - deploy_stack:
+          name: deploy_dev_all_service
+          environment: dev
+          weight: large
+          auto_scale: true
+          context: DevelopmentAutomation
+          requires:
+            - dev_deploy_all_service
+          filters:
+            <<: *filters-staging
+      - approval:
+          name: qa_approval
+          type: approval
+          auto_scale: true
+          requires:
+            - deploy_dev
+          filters:
+            <<: *filters-staging # this is calling the previously set yaml anchor
+      - deploy:
+          name: deploy_qa
+          environment: qa
+          weight: large
+          auto_scale: true
+          context: QaAutomation
+          ssh_db_connection: true
+          # requires:
+            # - qa_approval
+          filters:
+            <<: *filters-staging # this is calling the previously set yaml anchor
+      - deploy:
+          name: deploy_qa_prod
+          environment: qa
+          weight: large
+          auto_scale: true
+          context: QaAutomation
+          filters: &filters-production # this yaml anchor is setting these values to "filters-staging"
+            tags:
+              only: 
+                - /^v.*/
+            branches:
+              ignore: /.*/
+      - approval:
+          name: pre_prod_approval
+          type: approval
+          auto_scale: true
+          requires:
+            - deploy_qa_prod
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+      - deploy:
+          name: deploy_pre_prod
+          environment: pre-prod
+          weight: large
+          auto_scale: true
+          context: PreProdAutomation
+          requires:
+            - pre_prod_approval
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+      - approval:
+          name: pre_prod_deploy_all_service
+          type: approval
+          auto_scale: true
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+      - deploy_stack:
+          name: deploy_pre_prod_all_service
+          environment: pre-prod
+          weight: large
+          auto_scale: true
+          context: PreProdAutomation
+          requires:
+            - pre_prod_deploy_all_service
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+      - approval:
+          name: qa_deploy_all_service
+          type: approval
+          auto_scale: true
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+      - deploy_stack:
+          name: deploy_qa_all_service
+          environment: qa
+          weight: large
+          auto_scale: true
+          context: QaAutomation
+          requires:
+            - qa_deploy_all_service
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+      - approval:
+          name: prod_approval
+          type: approval
+          auto_scale: true
+          requires:
+            - deploy_pre_prod
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+      - rds_snapshot:
+          name: rds_snapshot_prod
+          environment: prod
+          context: ProdAutomation
+          ssh_db_connection: true
+          requires:
+            - prod_approval
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+      - deploy:
+          name: deploy_prod
+          environment: prod
+          auto_scale: true
+          weight: large
+          context: ProdAutomation
+          ssh_db_connection: true
+          requires:
+            - rds_snapshot_prod
+          filters:
+            <<: *filters-production # this is calling the previously set yaml anchor
+  
+  deploy-workflow:
+    jobs:
+      - approval:
+          name: dev_workflow_approval
+          type: approval
+          filters: &filters-staging-workflow # this yaml anchor is setting these values to "filters-staging"
+            tags:
+              only: 
+                - /1.0.*/
+            branches:
+              ignore: /.*/
+      - deploy_workflow:
+          name: deploy_workflow_dev
+          environment: dev
+          weight: large
+          auto_scale: true
+          context: DevelopmentAutomation
+          relative_path_kube_tpl: '/kube/workflow.tpl.yaml'
+          requires:
+            - dev_workflow_approval
+          filters:
+            <<: *filters-staging-workflow # this is calling the previously set yaml anchor
+      - approval:
+          name: qa_workflow_approval
+          type: approval
+          auto_scale: true
+          requires:
+            - deploy_workflow_dev
+          filters:
+            <<: *filters-staging-workflow # this is calling the previously set yaml anchor
+      - deploy_workflow:
+          name: deploy_workflow_qa
+          environment: qa
+          weight: large
+          auto_scale: true
+          context: QaAutomation
+          ssh_db_connection: true
+          relative_path_kube_tpl: '/kube/workflow.tpl.yaml'
+          requires:
+            - qa_workflow_approval
+          filters:
+            <<: *filters-staging-workflow # this is calling the previously set yaml anchor
+      - deploy_workflow:
+          name: deploy_qa_workflow_prod
+          environment: qa
+          weight: large
+          auto_scale: true
+          context: QaAutomation
+          relative_path_kube_tpl: '/kube/workflow.tpl.yaml'
+          filters: &filters-production-workflow # this yaml anchor is setting these values to "filters-staging"
+            tags:
+              only: 
+                - /^v.*/
+            branches:
+              ignore: /.*/
+      - approval:
+          name: pre_prod_workflow_approval
+          type: approval
+          auto_scale: true
+          requires:
+            - deploy_qa_workflow_prod
+          filters:
+            <<: *filters-production-workflow # this is calling the previously set yaml anchor
+      - deploy_workflow:
+          name: deploy_workflow_pre_prod
+          environment: pre-prod
+          weight: large
+          auto_scale: true
+          relative_path_kube_tpl: '/kube/workflow.tpl.yaml'
+          context: PreProdAutomation
+          requires:
+            - pre_prod_workflow_approval
+          filters:
+            <<: *filters-production-workflow # this is calling the previously set yaml anchor
+      - approval:
+          name: prod_workflow_approval
+          type: approval
+          auto_scale: true
+          requires:
+            - deploy_workflow_pre_prod
+          filters:
+            <<: *filters-production-workflow # this is calling the previously set yaml anchor
+      - rds_snapshot:
+          name: rds_snapshot_workflow_prod
+          environment: prod
+          context: ProdAutomation
+          ssh_db_connection: true
+          requires:
+            - prod_workflow_approval
+          filters:
+            <<: *filters-production-workflow # this is calling the previously set yaml anchor
+      - deploy_workflow:
+          name: deploy_workflow_prod
+          environment: prod
+          auto_scale: true
+          weight: large
+          context: ProdAutomation
+          relative_path_kube_tpl: '/kube/workflow.tpl.yaml'
+          ssh_db_connection: true
+          requires:
+            - rds_snapshot_workflow_prod
+          filters:
+            <<: *filters-production-workflow # this is calling the previously set yaml anchor
+  
+  # schedule_destroy_stacks_dev:
+  #   triggers:
+  #     - schedule:
+  #         # cron: "30 10 * * *"
+  #         cron: "30 15 * * *"
+  #         # At 03:30 PM (08:00 PM IST),(Every Day) Monday through Sunday 
+  #         filters:
+  #           branches:
+  #             only:
+  #               - dev
+  #   jobs:
+  #     - destroy_stacks:
+  #         name: destroy_stacks_dev
+  #         environment: dev
+  #         context: DevelopmentAutomation
+  #         node_group_name: managed-nodes
+
+  # schedule_create_stacks_dev:
+  #   triggers:
+  #     - schedule:
+  #         # https://crontab.cronhub.io
+  #         cron: "30 3 * * *"
+  #         # At 03:30 AM (09:00 AM IST), Monday through Sunday 
+  #         # cron: "50 9 * * *"
+  #         # At 03:30 AM (09:00 AM IST), Monday through Sunday 
+  #         filters:
+  #           branches:
+  #             only:
+  #               - dev
+  #   jobs:
+  #     - deploy_stack:
+  #         name: deploy_dev
+  #         environment: dev
+  #         auto_scale: true
+  #         weight: large
+  #         context: DevelopmentAutomation
+  
+  schedule_destroy_stacks_qa:
+    triggers:
+      - schedule:
+          # cron: "30 10 * * *"
+          cron: "30 15 * * *"
+          # At 03:30 PM (08:00 PM IST),(Every Day) Monday through Sunday 
+          filters:
+            branches:
+              only:
+                - qa
+    jobs:
+      - destroy_stacks:
+          name: destroy_stacks_qa
+          environment: qa
+          context: QaAutomation
+          node_group_name: managed-nodes
+#   schedule_create_stacks_qa:
+#     triggers:
+#       - schedule:
+#           # https://crontab.cronhub.io
+#           cron: "30 3 * * *"
+#           # At 03:30 AM (09:00 AM IST), Monday through Sunday 
+#           # cron: "50 9 * * *"
+#           # At 03:30 AM (09:00 AM IST), Monday through Sunday 
+#           filters:
+#             branches:
+#               only:
+#                 - qa
+#     jobs:
+#       - deploy_stack:
+#           name: deploy_qa
+#           environment: qa
+#           auto_scale: true
+#           weight: large
+#           context: QaAutomation
+  
+  schedule_destroy_stacks_pre_prod:
+    triggers:
+      - schedule:
+          # cron: "30 10 * * *"
+          cron: "30 15 * * *"
+          # At 03:30 PM (08:00 PM IST),(Every Day) Monday through Sunday 
+          filters:
+            branches:
+              only:
+                - qa
+    jobs:
+      - destroy_stacks:
+          name: destroy_stacks_pre_prod
+          environment: pre-prod
+          context: PreProdAutomation
+          node_group_name: managed-nodes
+  # schedule_create_stacks_pre_prod:
+  #   triggers:
+  #     - schedule:
+  #         # https://crontab.cronhub.io
+  #         cron: "30 3 * * *"
+  #         # At 03:30 AM (09:00 AM IST), Monday through Sunday 
+  #         # cron: "50 9 * * *"
+  #         # At 03:30 AM (09:00 AM IST), Monday through Sunday 
+  #         filters:
+  #           branches:
+  #             only:
+  #               - qa
+  #   jobs:
+  #     - deploy_stack:
+  #         name: deploy_pre_prod
+  #         environment: pre-prod
+  #         auto_scale: true
+  #         weight: large
+  #         context: PreProdAutomation
+  
+  # schedule_stop_dms_task_dev:
+  #   triggers:
+  #     - schedule:
+  #         cron: "30 7 * * *"
+  #         # https://crontab.cronhub.io
+  #         # cron: "30 15 * * *"
+  #         # At 03:30 PM (08:00 PM IST),(Every Day) Monday through Sunday 
+  #         filters:
+  #           branches:
+  #             ignore: /.*/
+  #   jobs:
+  #     - stop_dms_task:
+  #         name: stop_dms_task_dev
+  #         environment: dev
+  #         dms_task_identifier: auth-dev
+  #         context: DevelopmentAutomation
+  # schedule_start_dms_task_dev:
+  #   triggers:
+  #     - schedule:
+  #         # https://crontab.cronhub.io
+  #         cron: "00 7 * * *"
+  #         # At 03:30 AM (09:00 AM IST), Monday through Sunday 
+  #         filters:
+  #           branches:
+  #             ignore: /.*/
+  #   jobs:
+  #     - start_dms_task:
+  #         name: start_dms_task_dev
+  #         environment: dev
+  #         dms_task_identifier: auth-dev
+  #         context: DevelopmentAutomation
+
+# VS Code Extension Version: 1.5.1

@@ -1,0 +1,252 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "Node microservice",
+    "description": "This end points ensure that the Node microservice sever and database connectivity are working",
+    "termsOfService": "https://eazyfin.com/terms/",
+    "contact": {
+      "email": "admin@eazyfin.com"
+    },
+    "license": {
+      "name": "Eazyfin 1.0",
+      "url": "https://eazyfin.com/"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://node-microservice-dev.eazyfin.in",
+      "description": "Dev server"
+    },
+    {
+      "url": "https://node-microservice-qa.eazyfin.com",
+      "description": "Testing server"
+    },
+    {
+      "url": "https://node-microservice-pre-prod.eazyfin.com",
+      "description": "Pre-prod server"
+    },
+    {
+      "url": "https://node-microservice.eazyfin.com",
+      "description": "Production server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "default",
+      "description": "Endpoint for checking the service is availability",
+      "externalDocs": {
+        "description": "Find out more",
+        "url": "https://eazyfin.atlassian.net/wiki/spaces/development/pages/32276485/node+microservice"
+      }
+    },
+    {
+      "name": "User",
+      "description": "Everything about the user"
+    }
+  ],
+  "paths": {
+    "/ping": {
+      "get": {
+        "tags": [ "default" ],
+        "summary": "This endpoint will ensure that node-microservice service is working",
+        "description": "This endpoint will ensure that node-microservice service is working",
+        "operationId": "ping",
+        "responses": {
+          "200": {
+            "description": "Will return status 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "node-microservice"
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "1.0.0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthcheck": {
+      "get": {
+        "tags": [ "default" ],
+        "summary": "This endpoint will be consumed by dashboards for monitoring purposes. It could talk to downstream services",
+        "description": "This endpoint will be consumed by dashboards for monitoring purposes. It could talk to downstream services",
+        "operationId": "healthcheck",
+        "responses": {
+          "200": {
+            "description": "Will return response for all downstream services",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string",
+                      "example": "1.0.0"
+                    },
+                    "dependsOn": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "example": "node-microservice"
+                          },
+                          "type": {
+                            "type": "string",
+                            "example": "database"
+                          },
+                          "status": {
+                            "type": "string",
+                            "example": "success"
+                          },
+                          "version": {
+                            "type": "string",
+                            "example": "0"
+                          },
+                          "url": {
+                            "type": "string",
+                            "example": "https://eazyfin.com"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "deviceId": {
+        "name": "x-platform-deviceid",
+        "in": "header",
+        "example": "6bed8d80-33e6-4a4d-88ef-9ec24b89a58b",
+        "description": "x-platform-deviceid is required for device verification",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format":"uuid"
+        }
+      }
+    },
+    "schemas": {
+      "error400": {
+        "type": "object",
+        "description": "Invalid request data",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "field-validation"
+          },
+          "statusCode": {
+            "type": "integer",
+            "example": 400
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "example": "version"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "Invalid request data"
+                }
+              }
+            }
+          }
+        }
+      },
+      "error403": {
+        "type": "object",
+        "description": "Forbidden",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "unauthorized-access"
+          },
+          "statusCode": {
+            "type": "integer",
+            "example": 403
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "example": "no-access"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "Do not have access to end point"
+                }
+              }
+            }
+          }
+        }
+      },
+      "error500": {
+        "type": "object",
+        "description": "Internal server error",
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "example": 500
+          },
+          "type": {
+            "type": "string",
+            "example": "unexpected-internal-server-error"
+          },
+          "correlationId": {
+            "type": "string",
+            "example": "dab45211-f134-428f-93f5-901d8d5770c8"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "example": "unexpected-server-error"
+                },
+                "message": {
+                  "type": "string",
+                  "example": "Please contact administrator and present correlation identifier for troubleshooting"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
